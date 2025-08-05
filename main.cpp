@@ -311,6 +311,47 @@ void triangle_v3(Vec3f p0, Vec3f p1, Vec3f p2, float* zbuffer, TGAImage& image, 
     }
 }
 
+void triangle_v4(Vec3f* ps, Vec2i* uvs, float* zbuffer, TGAImage& image)
+{
+    Vec2f minBox(image.width()-1,  image.height()-1);
+    Vec2f maxBox(0, 0);
+    minBox.x = std::min(minBox.x, ps[0].x);
+    minBox.x = std::min(minBox.x, ps[1].x);
+    minBox.x = std::min(minBox.x, ps[2].x);
+    minBox.y = std::min(minBox.y, ps[0].y);
+    minBox.y = std::min(minBox.y, ps[1].y);
+    minBox.y = std::min(minBox.y, ps[2].y);
+    
+    maxBox.x = std::max(maxBox.x, ps[0].x);
+    maxBox.x = std::max(maxBox.x, ps[1].x);
+    maxBox.x = std::max(maxBox.x, ps[2].x);
+    maxBox.y = std::max(maxBox.y, ps[0].y);
+    maxBox.y = std::max(maxBox.y, ps[1].y);
+    maxBox.y = std::max(maxBox.y, ps[2].y);
+
+    Vec2i uv;
+    Vec3f p;
+    for (p.x=minBox.x; p.x<=maxBox.x; p.x++)
+    {
+        for (p.y=minBox.y; p.y<=maxBox.y; p.y++)
+        {
+            Vec3f bc = barycentric_v2(ps[0], ps[1], ps[2], p);
+            if (bc.x < 0 || bc.y < 0 || bc.z < 0) continue;
+
+            p.z = ps[0].z*bc.x + ps[1].z*bc.y + ps[2].z*bc.z;
+
+            uv = uvs[0]*bc.x + uvs[1]*bc.y + uvs[2]*bc.z;
+
+            if (zbuffer[int(p.x + p.y*width)] < p.z)
+            {
+                zbuffer[int(p.x + p.y*width)] = p.z;
+                TGAColor color = model->diffuse(uv);
+                image.set(p.x, p.y, color);
+            }
+        }
+    }
+}
+
 
 void draw_head()
 {
@@ -444,6 +485,50 @@ void draw_head_v4()
     delete model;
 }
 
+void draw_head_v5()
+{
+    TGAImage image(width, height, TGAImage::RGB);
+    float* zbuffer = new float[height*width];
+    for (int i=0; i<height*width; i++) {
+        zbuffer[i] = -std::numeric_limits<float>::max();
+    }
+
+    TGAImage diffuse;
+    diffuse.read_tga_file("../obj/african_head_diffuse.tga");
+    model = new Model("../obj/african_head.obj");
+    for (int i=0; i<model->nfaces(); i++)
+    {
+        Vec3f uv_coords[3];
+        Vec3f screen_coords[3]; 
+        Vec3f world_coords[3]; 
+        std::vector<int> face = model->face(i);
+        for (int j=0; j<3; j++)
+        {
+            Vec3f v0 = model->vert(face[j]);
+            world_coords[j] = v0;
+            // 这里必须转成int
+            screen_coords[j] = Vec3f((int)((v0.x+1.)*width/2.), (int)((v0.y+1.)*height/2.), v0.z);
+        }
+
+        // 计算三角面的法线，注意：顶点是逆时针顺序
+        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        // Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        n.normalize();
+
+        float intensity = n * light_dir;
+        if (intensity > 0)
+        {
+            Vec2i uv[3];
+            for (int k=0; k<3; k++) {
+                uv[k] = model->uv(i, k);
+            }
+            triangle_v4(screen_coords, uv, zbuffer, image);
+        }
+    }
+    image.write_tga_file("head_v5.tga");
+    delete model;
+}
+
 void draw_test() {
 
     TGAImage image(100, 100, TGAImage::RGB);
@@ -486,5 +571,5 @@ void draw_test3()
 
 int main(int argc, char** argv)
 {
-    draw_head_v4();
+    draw_head_v5();
 }
