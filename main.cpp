@@ -4,7 +4,8 @@
 
 const TGAColor white = {255, 255, 255, 255};
 const TGAColor red   = {0, 0, 255, 255};
-const TGAColor green   = {0, 255, 0, 255};
+const TGAColor green = {0, 255, 0, 255};
+const TGAColor blue  = {255, 0, 0, 255};
 Model* model = NULL;
 const int width  = 800;
 const int height = 800;
@@ -219,7 +220,7 @@ void triangle_v1(Vec2i p0, Vec2i p1, Vec2i p2, TGAImage& image, TGAColor color)
 Vec3f barycentric(Vec2i p0, Vec2i p1, Vec2i p2, Vec2i p)
 {
     Vec3f u = Vec3f(p1.x - p0.x, p2.x - p0.x, p0.x - p.x) ^ Vec3f(p1.y - p0.y, p2.y - p0.y, p0.y - p.y);
-    return Vec3f(u.x/u.z, u.y/u.z, 1 - (u.x + u.y) / u.z); 
+    return Vec3f(1 - (u.x + u.y) / u.z, u.x/u.z, u.y/u.z); 
 }
 
 void triangle_v2(Vec2i p0, Vec2i p1, Vec2i p2, TGAImage& image, TGAColor color)
@@ -248,6 +249,64 @@ void triangle_v2(Vec2i p0, Vec2i p1, Vec2i p2, TGAImage& image, TGAColor color)
             Vec3f bc = barycentric(p0, p1, p2, p);
             if (bc.x < 0 || bc.y < 0 || bc.z < 0) continue;
             image.set(p.x, p.y, color);
+        }
+    }
+}
+
+void rasterize(Vec2i p0, Vec2i p1, TGAImage& image, TGAColor color, int ybuffer[])
+{
+    if (p0.x > p1.x) std::swap(p0, p1);
+
+    for (int x=p0.x; x<=p1.x; x++)
+    {
+        float t = (x-p0.x)/(float)(p1.x-p0.x);
+        int y = p0.y*(1.0-t) + p1.y*t;
+        if (ybuffer[x] < y)
+        {
+            ybuffer[x] = y;
+            image.set(x, 0, color);
+        }
+    }
+}
+
+Vec3f barycentric_v2(Vec3f p0, Vec3f p1, Vec3f p2, Vec3f p)
+{
+    Vec3f u = Vec3f(p1.x - p0.x, p2.x - p0.x, p0.x - p.x) ^ Vec3f(p1.y - p0.y, p2.y - p0.y, p0.y - p.y);
+    return Vec3f(1 - (u.x + u.y) / u.z, u.x/u.z, u.y/u.z); 
+}
+
+void triangle_v3(Vec3f p0, Vec3f p1, Vec3f p2, float* zbuffer, TGAImage& image, TGAColor color)
+{
+    Vec2f minBox(image.width()-1,  image.height()-1);
+    Vec2f maxBox(0, 0);
+    minBox.x = std::min(minBox.x, p0.x);
+    minBox.x = std::min(minBox.x, p1.x);
+    minBox.x = std::min(minBox.x, p2.x);
+    minBox.y = std::min(minBox.y, p0.y);
+    minBox.y = std::min(minBox.y, p1.y);
+    minBox.y = std::min(minBox.y, p2.y);
+    
+    maxBox.x = std::max(maxBox.x, p0.x);
+    maxBox.x = std::max(maxBox.x, p1.x);
+    maxBox.x = std::max(maxBox.x, p2.x);
+    maxBox.y = std::max(maxBox.y, p0.y);
+    maxBox.y = std::max(maxBox.y, p1.y);
+    maxBox.y = std::max(maxBox.y, p2.y);
+
+    Vec3f p;
+    for (p.x=minBox.x; p.x<=maxBox.x; p.x++)
+    {
+        for (p.y=minBox.y; p.y<=maxBox.y; p.y++)
+        {
+            Vec3f bc = barycentric_v2(p0, p1, p2, p);
+            if (bc.x < 0 || bc.y < 0 || bc.z < 0) continue;
+
+            p.z = p0.z*bc.x + p1.z*bc.y + p2.z*bc.z;
+            if (zbuffer[int(p.x + p.y*width)] < p.z)
+            {
+                zbuffer[int(p.x + p.y*width)] = p.z;
+                image.set(p.x, p.y, color);
+            }
         }
     }
 }
@@ -342,6 +401,49 @@ void draw_head_v3()
     delete model;
 }
 
+void draw_head_v4()
+{
+    TGAImage image(width, height, TGAImage::RGB);
+    float* zbuffer = new float[height*width];
+    for (int i=0; i<height*width; i++) {
+        zbuffer[i] = -std::numeric_limits<float>::max();
+    }
+
+    model = new Model("../obj/african_head.obj");
+    for (int i=0; i<model->nfaces(); i++)
+    {
+        Vec3f screen_coords[3]; 
+        Vec3f world_coords[3]; 
+        std::vector<int> face = model->face(i);
+        for (int j=0; j<3; j++)
+        {
+            Vec3f v0 = model->vert(face[j]);
+            world_coords[j] = v0;
+            // 这里必须转成int
+            screen_coords[j] = Vec3f((int)((v0.x+1.)*width/2.), (int)((v0.y+1.)*height/2.), v0.z);
+        }
+
+        // 计算三角面的法线，注意：顶点是逆时针顺序
+        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        // Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        n.normalize();
+
+        float intensity = n * light_dir;
+        if (intensity > 0)
+        {
+            TGAColor color = {
+                static_cast<uint8_t>(intensity * 255),
+                static_cast<uint8_t>(intensity * 255),
+                static_cast<uint8_t>(intensity * 255),
+                static_cast<uint8_t>(255)  // 255也需要转换（虽然字面量允许，但保持一致性）
+            };
+            triangle_v3(screen_coords[0], screen_coords[1], screen_coords[2], zbuffer, image, color);
+        }
+    }
+    image.write_tga_file("head_v4.tga");
+    delete model;
+}
+
 void draw_test() {
 
     TGAImage image(100, 100, TGAImage::RGB);
@@ -369,17 +471,20 @@ void draw_test() {
     image.write_tga_file("test.tga");
 }
 
+void draw_test3()
+{
+    TGAImage render(width, 16, TGAImage::RGB);
+    int ybuffer[width];
+    for (int i=0; i<width; i++) {
+        ybuffer[i] = std::numeric_limits<int>::min();
+    }
+    rasterize(Vec2i(20, 34),   Vec2i(744, 400), render, red,   ybuffer);
+    rasterize(Vec2i(120, 434), Vec2i(444, 400), render, green, ybuffer);
+    rasterize(Vec2i(330, 463), Vec2i(594, 200), render, blue,  ybuffer);
+    render.write_tga_file("test3.tga");
+}
+
 int main(int argc, char** argv)
 {
-    TGAImage image(200, 200, TGAImage::RGB);
-    Vec2i t0[3] = {Vec2i(10, 70),   Vec2i(50, 160),  Vec2i(70, 80)}; 
-    Vec2i t1[3] = {Vec2i(180, 50),  Vec2i(150, 1),   Vec2i(70, 180)}; 
-    Vec2i t2[3] = {Vec2i(180, 150), Vec2i(120, 160), Vec2i(130, 180)}; 
-    triangle_v2(t0[0], t0[1], t0[2], image, red); 
-    triangle_v2(t1[0], t1[1], t1[2], image, white); 
-    triangle_v2(t2[0], t2[1], t2[2], image, green);
-
-    image.write_tga_file("triangle_v2.tga");
-
-    draw_head_v3();
+    draw_head_v4();
 }
