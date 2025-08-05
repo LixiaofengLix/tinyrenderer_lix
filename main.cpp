@@ -8,6 +8,7 @@ const TGAColor green   = {0, 255, 0, 255};
 Model* model = NULL;
 const int width  = 800;
 const int height = 800;
+Vec3f light_dir(0,0,-1); // define light_dir
 
 void line_v1(int x0, int y0, int x1, int y1, TGAImage& image, TGAColor color)
 {
@@ -291,8 +292,51 @@ void draw_head_v2()
             Vec3f v0 = model->vert(face[j]);
             screen_coords[j] = Vec2i((v0.x+1)*width/2, (v0.y+1)*height/2); 
         }
-        TGAColor color = {rand()%255, rand()%255, rand()%255, 255};
+        TGAColor color = {
+            static_cast<uint8_t>(rand() % 255),
+            static_cast<uint8_t>(rand() % 255),
+            static_cast<uint8_t>(rand() % 255),
+            static_cast<uint8_t>(255)  // 255也需要转换（虽然字面量允许，但保持一致性）
+        };
         triangle_v2(screen_coords[0], screen_coords[1], screen_coords[2], image, color);
+    }
+    image.write_tga_file("head_v2.tga");
+    delete model;
+}
+
+void draw_head_v3()
+{
+    TGAImage image(width, height, TGAImage::RGB);
+
+    model = new Model("../obj/african_head.obj");
+    for (int i=0; i<model->nfaces(); i++)
+    {
+        Vec2i screen_coords[3]; 
+        Vec3f world_coords[3]; 
+        std::vector<int> face = model->face(i);
+        for (int j=0; j<3; j++)
+        {
+            Vec3f v0 = model->vert(face[j]);
+            world_coords[j] = v0;
+            screen_coords[j] = Vec2i((v0.x+1)*width/2, (v0.y+1)*height/2); 
+        }
+
+        // 计算三角面的法线，注意：顶点是逆时针顺序
+        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        // Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        n.normalize();
+
+        float intensity = n * light_dir;
+        if (intensity > 0)
+        {
+            TGAColor color = {
+                static_cast<uint8_t>(intensity * 255),
+                static_cast<uint8_t>(intensity * 255),
+                static_cast<uint8_t>(intensity * 255),
+                static_cast<uint8_t>(255)  // 255也需要转换（虽然字面量允许，但保持一致性）
+            };
+            triangle_v2(screen_coords[0], screen_coords[1], screen_coords[2], image, color);
+        }
     }
     image.write_tga_file("head_v2.tga");
     delete model;
@@ -337,5 +381,5 @@ int main(int argc, char** argv)
 
     image.write_tga_file("triangle_v2.tga");
 
-    draw_head_v2();
+    draw_head_v3();
 }
