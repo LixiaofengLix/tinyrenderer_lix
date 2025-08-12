@@ -538,6 +538,14 @@ mat<4,4,float> view(Vec3i pos, Vec3i at, Vec3i up)
     return mat<4,4,float>({{x.x, x.y, x.z, 0}, {y.z, y.y, y.z, 0}, {z.x, z.y, z.z, 0}, {0,0,0,1}}) * mat<4,4,float>({{1,0,0,-pos.x}, {0,1,0,-pos.y}, {0,0,1,-pos.z}, {0,0,0,1}});
 }
 
+mat<4,4,float> projection(const float f) { // check https://en.wikipedia.org/wiki/Camera_matrix
+    return {{{1,0,0,0}, {0,-1,0,0}, {0,0,1,0}, {0,0,-1/f,0}}};
+}
+
+mat<4,4,float> viewport(const int x, const int y, const int w, const int h) {
+    return {{{w/2., 0, 0, x+w/2.}, {0, h/2., 0, y+h/2.}, {0,0,1,0}, {0,0,0,1}}};
+}
+
 void draw_head_v6()
 {
     TGAImage image(width, height, TGAImage::RGB);
@@ -552,9 +560,8 @@ void draw_head_v6()
     Vec3i camera_up(0, 1, 0);
 
     mat<4,4,float> modelview = view(camera_pos, camera_at, camera_up);
-    mat<4,4,float> projection({{1,0,0,0}, {0,-1,0,0}, {0,0,1,0}, {0,0,-1/norm(camera_pos-camera_at),0}});
-    // width/8, height/8, width*3/4, height*3/4
-    mat<4,4,float> viewport({{(width*3/4)/2., 0, 0, (width/8)+(width*3/4)/2.}, {0, (height*3/4)/2., 0, (height/8)+(height*3/4)/2.}, {0,0,1,0}, {0,0,0,1}});
+    mat<4,4,float> _projection = projection(-1.f/norm(camera_pos-camera_at));
+    mat<4,4,float> _viewport = viewport(width/8, height/8, width*3/4, height*3/4);
 
     TGAImage diffuse;
     diffuse.read_tga_file("../obj/african_head_diffuse.tga");
@@ -570,7 +577,10 @@ void draw_head_v6()
             Vec3f v0 = model->vert(face[j]);
             world_coords[j] = v0;
             // 这里必须转成int
-            screen_coords[j] = Vec3f((int)((v0.x+1.)*width/2.), (int)((v0.y+1.)*height/2.), v0.z);
+            //screen_coords[j] = Vec3f((int)((v0.x+1.)*width/2.), (int)((v0.y+1.)*height/2.), v0.z);
+            Vec4f v = _viewport*_projection*modelview*Vec4f(v0.x, v0.y, v0.z, 1);
+            Vec3f vv = (v/v.w).xyz();
+            screen_coords[j] = {(int)vv.x, (int)vv.y, vv.z};
         }
 
         // 计算三角面的法线，注意：顶点是逆时针顺序
@@ -588,7 +598,7 @@ void draw_head_v6()
             triangle_v4(screen_coords, uv, zbuffer, image);
         }
     }
-    image.write_tga_file("head_v5.tga");
+    image.write_tga_file("head_v6.tga");
     delete model;
 }
 
@@ -634,5 +644,5 @@ void draw_test3()
 
 int main(int argc, char** argv)
 {
-    draw_head_v5();
+    draw_head_v6();
 }

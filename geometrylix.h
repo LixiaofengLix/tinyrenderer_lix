@@ -96,6 +96,8 @@ template<typename T> struct vec<4,T>
     T x = 0, y = 0, z = 0, w = 0;
     T& operator[](const int i)       { assert(i>=0 && i<4); return i>1 ? (i==2 ? z : w) : (i ? y : x); }
     T  operator[](const int i) const { assert(i>=0 && i<4); return i>1 ? (i==2 ? z : w) : (i ? y : x); }
+
+    vec<3,T> xyz() { return {x, y, z}; }
 };
 
 typedef vec<2,int> Vec2i;
@@ -177,7 +179,7 @@ template<int R1,int C1,int C2, typename T> mat<R1,C2,T> operator*(const mat<R1,C
 
 template<int nrows, int ncols, typename T> vec<ncols,T> operator*(const mat<nrows,ncols,T> &lmat, const vec<ncols,T> &rvec) {
     vec<ncols,T> ret;
-    for (int i=ncols; i<ncols; i++) {
+    for (int i=0; i<ncols; i++) {
         ret[i] = lmat[i]*rvec;
     }
 
