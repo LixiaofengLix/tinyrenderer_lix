@@ -1,6 +1,6 @@
 #include "tgaimage.h"
 #include "model.h"
-#include "geometry.h"
+#include "geometrylix.h"
 
 const TGAColor white = {255, 255, 255, 255};
 const TGAColor red   = {0, 0, 255, 255};
@@ -219,7 +219,7 @@ void triangle_v1(Vec2i p0, Vec2i p1, Vec2i p2, TGAImage& image, TGAColor color)
 
 Vec3f barycentric(Vec2i p0, Vec2i p1, Vec2i p2, Vec2i p)
 {
-    Vec3f u = Vec3f(p1.x - p0.x, p2.x - p0.x, p0.x - p.x) ^ Vec3f(p1.y - p0.y, p2.y - p0.y, p0.y - p.y);
+    Vec3f u = cross(Vec3f(p1.x - p0.x, p2.x - p0.x, p0.x - p.x), Vec3f(p1.y - p0.y, p2.y - p0.y, p0.y - p.y));
     return Vec3f(1 - (u.x + u.y) / u.z, u.x/u.z, u.y/u.z); 
 }
 
@@ -271,7 +271,7 @@ void rasterize(Vec2i p0, Vec2i p1, TGAImage& image, TGAColor color, int ybuffer[
 
 Vec3f barycentric_v2(Vec3f p0, Vec3f p1, Vec3f p2, Vec3f p)
 {
-    Vec3f u = Vec3f(p1.x - p0.x, p2.x - p0.x, p0.x - p.x) ^ Vec3f(p1.y - p0.y, p2.y - p0.y, p0.y - p.y);
+    Vec3f u = cross(Vec3f(p1.x - p0.x, p2.x - p0.x, p0.x - p.x), Vec3f(p1.y - p0.y, p2.y - p0.y, p0.y - p.y));
     return Vec3f(1 - (u.x + u.y) / u.z, u.x/u.z, u.y/u.z); 
 }
 
@@ -422,11 +422,11 @@ void draw_head_v3()
         }
 
         // 计算三角面的法线，注意：顶点是逆时针顺序
-        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        Vec3f n = cross((world_coords[2] - world_coords[0]), (world_coords[1] - world_coords[0]));
         // Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
-        n.normalize();
+        normalized(n);
 
-        float intensity = n * light_dir;
+        float intensity = n*light_dir;
         if (intensity > 0)
         {
             TGAColor color = {
@@ -465,9 +465,9 @@ void draw_head_v4()
         }
 
         // 计算三角面的法线，注意：顶点是逆时针顺序
-        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        Vec3f n = cross((world_coords[2] - world_coords[0]), (world_coords[1] - world_coords[0]));
         // Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
-        n.normalize();
+        normalized(n);
 
         float intensity = n * light_dir;
         if (intensity > 0)
@@ -511,9 +511,72 @@ void draw_head_v5()
         }
 
         // 计算三角面的法线，注意：顶点是逆时针顺序
-        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        Vec3f n = cross((world_coords[2] - world_coords[0]), (world_coords[1] - world_coords[0]));
         // Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
-        n.normalize();
+        normalized(n);
+
+        float intensity = n * light_dir;
+        if (intensity > 0)
+        {
+            Vec2i uv[3];
+            for (int k=0; k<3; k++) {
+                uv[k] = model->uv(i, k);
+            }
+            triangle_v4(screen_coords, uv, zbuffer, image);
+        }
+    }
+    image.write_tga_file("head_v5.tga");
+    delete model;
+}
+
+mat<4,4,float> view(Vec3i pos, Vec3i at, Vec3i up)
+{
+    Vec3i z = normalized(pos - at);
+    Vec3i x = normalized(cross(up, z));
+    Vec3i y = normalized(cross(z, x));
+
+    return mat<4,4,float>({{x.x, x.y, x.z, 0}, {y.z, y.y, y.z, 0}, {z.x, z.y, z.z, 0}, {0,0,0,1}}) * mat<4,4,float>({{1,0,0,-pos.x}, {0,1,0,-pos.y}, {0,0,1,-pos.z}, {0,0,0,1}});
+}
+
+void draw_head_v6()
+{
+    TGAImage image(width, height, TGAImage::RGB);
+    float* zbuffer = new float[height*width];
+    for (int i=0; i<height*width; i++) {
+        zbuffer[i] = -std::numeric_limits<float>::max();
+    }
+
+    // 相机位置
+    Vec3i camera_pos(1, 1, 3);
+    Vec3i camera_at(0, 0, 0);       // 从 (1, 1, 3) 看向 (0, 0, 0)
+    Vec3i camera_up(0, 1, 0);
+
+    mat<4,4,float> modelview = view(camera_pos, camera_at, camera_up);
+    mat<4,4,float> projection({{1,0,0,0}, {0,-1,0,0}, {0,0,1,0}, {0,0,-1/norm(camera_pos-camera_at),0}});
+    // width/8, height/8, width*3/4, height*3/4
+    mat<4,4,float> viewport({{(width*3/4)/2., 0, 0, (width/8)+(width*3/4)/2.}, {0, (height*3/4)/2., 0, (height/8)+(height*3/4)/2.}, {0,0,1,0}, {0,0,0,1}});
+
+    TGAImage diffuse;
+    diffuse.read_tga_file("../obj/african_head_diffuse.tga");
+    model = new Model("../obj/african_head.obj");
+    for (int i=0; i<model->nfaces(); i++)
+    {
+        Vec3f uv_coords[3];
+        Vec3f screen_coords[3]; 
+        Vec3f world_coords[3]; 
+        std::vector<int> face = model->face(i);
+        for (int j=0; j<3; j++)
+        {
+            Vec3f v0 = model->vert(face[j]);
+            world_coords[j] = v0;
+            // 这里必须转成int
+            screen_coords[j] = Vec3f((int)((v0.x+1.)*width/2.), (int)((v0.y+1.)*height/2.), v0.z);
+        }
+
+        // 计算三角面的法线，注意：顶点是逆时针顺序
+        Vec3f n = cross((world_coords[2] - world_coords[0]), (world_coords[1] - world_coords[0]));
+        // Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+        normalized(n);
 
         float intensity = n * light_dir;
         if (intensity > 0)
