@@ -3,4 +3,4 @@ project(tinyrenderer LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(${PROJECT_NAME} main.cpp tgaimage.cpp model.cpp)
+add_executable(${PROJECT_NAME} main2.cpp tgaimage.cpp model.cpp)
