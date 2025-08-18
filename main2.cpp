@@ -5,7 +5,7 @@ Model *model     = NULL;
 const int width  = 800;
 const int height = 800;
 
-Vec3i  light_dir(1,1,1);
+Vec3f  light_dir(1,1,1);
 Vec3f camera_pos(1,1,3);
 Vec3f     center(0,0,0);
 Vec3f         up(0,1,0);
@@ -13,13 +13,17 @@ Vec3f         up(0,1,0);
 struct GouraudShader : public IShader {
     Vec3f varying_intensity;
 
-    virtual Vec4f vertex(Vec3f vert, Vec3f normal) {
-        Vec4f v(vert.x, vert.y, vert.z, 1);
-        return Viewport*Projection*ModelView*v;
+    virtual Vec4f vertex(Vec3f vert, Vec3f normal, int ivert) {
+        varying_intensity[ivert] = std::max(0.f, normal*light_dir);
+         Vec4f v = Viewport*Projection*ModelView*Vec4f(vert.x, vert.y, vert.z, 1);
+        // return Viewport*Projection*ModelView*v;
+        return v/v.w;
     }
 
-    virtual bool fragment(Vec2f uvf, TGAColor &color) {
-        color = model->diffuse(uvf);
+    virtual bool fragment(Vec3f bc, Vec2f uvf, TGAColor &color) {
+        float intensity = varying_intensity*bc;
+        // color = model->diffuse(uvf);
+        color = TGAColor{255,255,255}*intensity;
         return false;
     }
 };
@@ -50,7 +54,8 @@ int main(int argc, char** argv) {
         for (int j=0; j<3; j++) {                           // 遍历三角面顶点
             screen_coords[j] = shader.vertex(               // 返回屏幕坐标
                 model->vert(model->face(i)[j]),
-                model->normal(i, j)
+                model->normal(i, j),
+                j
             );           
         }
 

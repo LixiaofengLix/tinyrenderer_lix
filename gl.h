@@ -26,14 +26,15 @@ void set_viewport(int x, int y, int w, int h) {
 struct IShader {
     // virtual ~IShader();
     // 输入顶点模型坐标；返回屏幕坐标；顶点着色器的主要目标是变换顶点的坐标，次要目标是为片段着色器准备数据
-    virtual Vec4f vertex(Vec3f vert, Vec3f normal);     
+    virtual Vec4f vertex(Vec3f vert, Vec3f normal, int ivert);     
     // 片段着色器的主要目标是确定当前像素的颜色，次要目标是我们可以通过返回 true 来丢弃当前像素        
-    virtual bool fragment(Vec2f uv, TGAColor &color);
+    virtual bool fragment(Vec3f bc, Vec2f uv, TGAColor &color);
 };
 
 Vec3f barycentric(Vec4f p0, Vec4f p1, Vec4f p2, Vec3i p)
 {
     Vec3f u = cross(Vec3f(p1.x - p0.x, p2.x - p0.x, p0.x - p.x), Vec3f(p1.y - p0.y, p2.y - p0.y, p0.y - p.y));
+
     return Vec3f(1 - (u.x + u.y) / u.z, u.x/u.z, u.y/u.z); 
 }
 
@@ -68,12 +69,12 @@ void triangle(Vec4f *pts, Vec2f* uvs, IShader &shader, TGAImage &image, float* z
             float z = pts[0].z*bc.x + pts[1].z*bc.y + pts[2].z*bc.z;    
             float w = pts[0].w*bc.x + pts[1].w*bc.y + pts[2].w*bc.z;   
             int depth = z/w;
-            if (zbuffer[p.x, p.y*image.width()] > depth) continue;
+            if (zbuffer[int(p.x+ p.y*image.width())] > z) continue;
 
             uv = uvs[0]*bc.x + uvs[1]*bc.y + uvs[2]*bc.z;
-            bool discard = shader.fragment(uv, color);
+            bool discard = shader.fragment(bc, uv, color);
             if (!discard) {
-                zbuffer[p.x, p.y*image.width()] = depth;
+                zbuffer[int(p.x+ p.y*image.width())] = z;
                 image.set(p.x, p.y, color);
             }
         }

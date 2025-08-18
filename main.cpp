@@ -311,7 +311,7 @@ void triangle_v3(Vec3f p0, Vec3f p1, Vec3f p2, float* zbuffer, TGAImage& image, 
     }
 }
 
-void triangle_v4(Vec3f* ps, Vec2i* uvs, float* zbuffer, TGAImage& image)
+void triangle_v4(Vec3f* ps, Vec2f* uvs, float* zbuffer, TGAImage& image)
 {
     Vec2f minBox(image.width()-1,  image.height()-1);
     Vec2f maxBox(0, 0);
@@ -329,7 +329,7 @@ void triangle_v4(Vec3f* ps, Vec2i* uvs, float* zbuffer, TGAImage& image)
     maxBox.y = std::max(maxBox.y, ps[1].y);
     maxBox.y = std::max(maxBox.y, ps[2].y);
 
-    Vec2i uv;
+    Vec2f uv;
     Vec3f p;
     for (p.x=minBox.x; p.x<=maxBox.x; p.x++)
     {
@@ -518,11 +518,11 @@ void draw_head_v5()
         float intensity = n * light_dir;
         if (intensity > 0)
         {
-            Vec2i uv[3];
+            Vec2f uvfs[3];
             for (int k=0; k<3; k++) {
-                uv[k] = model->uv(i, k);
+                uvfs[k] = model->uv(i,k);
             }
-            triangle_v4(screen_coords, uv, zbuffer, image);
+            triangle_v4(screen_coords, uvfs, zbuffer, image);
         }
     }
     image.write_tga_file("head_v5.tga");
@@ -578,7 +578,8 @@ void draw_head_v6()
             world_coords[j] = v0;
             // 这里必须转成int
             //screen_coords[j] = Vec3f((int)((v0.x+1.)*width/2.), (int)((v0.y+1.)*height/2.), v0.z);
-            Vec4f v = _viewport*_projection*modelview*Vec4f(v0.x, v0.y, v0.z, 1);
+            // Vec4f v = _viewport*_projection*modelview*Vec4f(v0.x, v0.y, v0.z, 1);
+            Vec4f v = _viewport*Vec4f(v0.x, v0.y, v0.z, 1);
             Vec3f vv = (v/v.w).xyz();
             screen_coords[j] = {(int)vv.x, (int)vv.y, vv.z};
         }
@@ -591,7 +592,7 @@ void draw_head_v6()
         float intensity = n * light_dir;
         if (intensity > 0)
         {
-            Vec2i uv[3];
+            Vec2f uv[3];
             for (int k=0; k<3; k++) {
                 uv[k] = model->uv(i, k);
             }
