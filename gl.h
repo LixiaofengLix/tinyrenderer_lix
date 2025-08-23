@@ -16,7 +16,7 @@ void set_modelview(Vec3f camera_pos, Vec3f center, Vec3f up) {
 }
 
 void set_projection(float coeff) {
-    Projection = {{{1,0,0,0}, {0,-1,0,0}, {0,0,1,0}, {0,0,coeff,0}}};
+    Projection = {{{1,0,0,0}, {0,1,0,0}, {0,0,1,0}, {0,0,coeff,1}}};
 }
 
 void set_viewport(int x, int y, int w, int h) {
